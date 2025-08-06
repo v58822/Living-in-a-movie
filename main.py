@@ -2,7 +2,7 @@ import statistics
 import random
 import requests
 
-import movie_storage_sql as storage
+from storage import movie_storage_sql as storage
 
 KEY = "c64b151d"
 DATA_URL = f"http://www.omdbapi.com/?apikey={KEY}"
