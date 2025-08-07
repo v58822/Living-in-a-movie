@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 
 # Define the database URL
 DB_URL = "sqlite:///data/movies.db"
@@ -16,7 +17,9 @@ with engine.connect() as connection:
             title TEXT UNIQUE NOT NULL,
             year INTEGER NOT NULL,
             rating REAL NOT NULL,
-            poster TEXT
+            poster TEXT,
+            country TEXT,
+            flag_url TEXT
         )
     """
         )
@@ -28,26 +31,53 @@ def list_movies():
     """Retrieve all movies from the database."""
     with engine.connect() as connection:
         result = connection.execute(
-            text("SELECT title, year, rating, poster FROM movies")
+            text("SELECT title, year, rating, poster, country, flag_url FROM movies")
         )
         movies = result.fetchall()
 
-    return {row[0]: {"year": row[1], "rating": row[2], "poster": row[3]} for row in movies}
+    return {
+        row[0]: {
+            "year": row[1],
+            "rating": row[2],
+            "poster": row[3],
+            "country": row[4],
+            "flag_url": row[5],
+        }
+        for row in movies
+    }
 
 
-def add_movie(title, year, rating, poster):
-    """Add a new movie to the database."""
-    with engine.connect() as connection:
-        try:
+def add_movie(title, year, rating, poster, country, flag_url):
+    """Add a new movie to the database.
+
+    Returns:
+        True if the movie was added,
+        False if it already exists,
+        None if an unexpected error occurred.
+    """
+    try:
+        with engine.connect() as connection:
             connection.execute(
                 text(
-                    "INSERT INTO movies (title, year, rating, poster) VALUES (:title, :year, :rating, :poster)"
+                    "INSERT INTO movies (title, year, rating, poster, country, flag_url) "
+                    "VALUES (:title, :year, :rating, :poster, :country, :flag_url)"
                 ),
-                {"title": title, "year": year, "rating": rating, "poster": poster},
+                {
+                    "title": title,
+                    "year": year,
+                    "rating": rating,
+                    "poster": poster,
+                    "country": country,
+                    "flag_url": flag_url,
+                },
             )
             connection.commit()
-        except Exception as e:
-            print(f"Error: {e}")
+        return True
+    except IntegrityError:
+        return False
+    except Exception as e:
+        print(f"Error while adding movie: {e}")
+        return None
 
 
 def delete_movie(title):

@@ -1,12 +1,16 @@
 import statistics
 import random
 import requests
+import pycountry
 
 from storage import movie_storage_sql as storage
 
-KEY = "c64b151d"
-DATA_URL = f"http://www.omdbapi.com/?apikey={KEY}"
-POSTER_URL = f"http://img.omdbapi.com/?apikey={KEY}"
+API_KEY = "c64b151d"
+DATA_URL = f"http://www.omdbapi.com/?apikey={API_KEY}"
+POSTER_URL = f"http://img.omdbapi.com/?apikey={API_KEY}"
+STATIC_DIR = "_static"
+TEMPLATE_FILE = f"{STATIC_DIR}/index_template.html"
+OUTPUT_FILE = f"{STATIC_DIR}/index.html"
 
 
 def command_list_movies():
@@ -42,9 +46,18 @@ def command_add_movie():
         title = response["Title"]
         year = int(response["Year"])
         rating = float(response["imdbRating"])
+        country = response["Country"]
+        country = country.split(",")[0].strip()
 
-        storage.add_movie(title, year, rating, poster)
-        print(f"Movie {title} successfully added.")
+        flag_url = command_get_flag(country)
+        result = storage.add_movie(title, year, rating, poster, country, flag_url)
+        if result is True:
+            print(f"Movie {title} successfully added.")
+        elif result is False:
+            print(f"The movie '{title}' is already in the collection.")
+        else:
+            print("An unexpected error occurred while adding the movie.")
+
     except (KeyError, ValueError, requests.exceptions.RequestException):
         print("There was a problem accessing movie data.")
 
@@ -180,12 +193,17 @@ def command_generate_website(movies):
     for title, data in movies.items():
         year = data["year"]
         poster = data["poster"]
+        flag_url = data["flag_url"]
+        country = data["country"]
 
         html_block = f"""
         <li>
           <div class="movie">
             <img class="movie-poster" src="{poster}" alt="{title} Poster">
-            <div class="movie-title">{title}</div>
+            <div class="movie-title">
+              {title}
+              <img class="flag-icon" src="{flag_url}" alt="" />
+            </div>
             <div class="movie-year">{year}</div>
           </div>
         </li>
@@ -193,7 +211,7 @@ def command_generate_website(movies):
         movie_grid_html += html_block
 
     # read template
-    with open("_static/index_template.html", "r") as fileobj:
+    with open(TEMPLATE_FILE, "r", encoding="utf-8") as fileobj:
         data = fileobj.read()
 
     # replace template
@@ -201,10 +219,54 @@ def command_generate_website(movies):
     final_html = html_with_title.replace("__TEMPLATE_MOVIE_GRID__", movie_grid_html)
 
     # save HTML
-    with open("_static/index.html", "w") as fileobj:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as fileobj:
         fileobj.write(final_html)
 
     print("Website was generated successfully.")
+
+
+def get_country_code(country_name):
+    try:
+        country = pycountry.countries.search_fuzzy(country_name)[0]
+        return country.alpha_2
+    except LookupError:
+        print(f"Country code for '{country_name}' not found.")
+        return None
+
+
+def command_get_flag(country):
+    """Fetches a country flag URL for a given country name."""
+
+    code = get_country_code(country)
+    if not code:
+        return None
+
+    country_url = f"https://api.api-ninjas.com/v1/countryflag?country={code}"
+    response = requests.get(
+        country_url, headers={"X-Api-Key": "QCeokNY12dIlVFN9Tve2DA==nqesixzrPLu1QRcn"}
+    )
+    if response.status_code == requests.codes.ok:
+        flag_data = response.json()
+        if isinstance(flag_data, dict) and "rectangle_image_url" in flag_data:
+            return flag_data["rectangle_image_url"]
+        else:
+            print("Unexpected flag API response format.")
+            return None
+
+    print("Error fetching flag from API.")
+    return None
+
+
+def get_menu_choice(max_choice):
+    while True:
+        try:
+            choice = int(input(f"Enter choice (0–{max_choice}): "))
+            print()
+            if 0 <= choice <= max_choice:
+                return choice
+            print(f"Number must be between 0 and {max_choice}.")
+        except ValueError:
+            print("Please enter a valid number.")
 
 
 def main():
@@ -224,47 +286,36 @@ def main():
         print("9. Generate website")
         print()
 
-        while True:
-            try:
-                selected_number = int(input("Enter choice (0-9): "))
-                if 0 <= selected_number <= 9:
-                    break
-                else:
-                    print("Number must be between 0 and 9.")
-            except ValueError:
-                print("Please enter a valid number.")
-        print()
+        selected_number = get_menu_choice(9)
+
+        movies = storage.list_movies()
+
+        MENU_ACTIONS = {
+            1: command_list_movies,
+            2: command_add_movie,
+            3: command_del_movie,
+            4: command_update_movie,
+            5: lambda: (
+                command_average_rating(movies),
+                command_median_ratings(movies),
+                command_best_movie_rating(movies),
+                command_worst_movie_rating(movies),
+            ),
+            6: lambda: command_random_movie(movies),
+            7: lambda: command_search_movie(movies),
+            8: lambda: command_movies_sorted_by_rating(movies),
+            9: lambda: command_generate_website(movies),
+        }
+
         if selected_number == 0:
             print("Bye!")
             break
-        if selected_number == 1:
-            command_list_movies()
-        elif selected_number == 2:
-            command_add_movie()
-        elif selected_number == 3:
-            command_del_movie()
-        elif selected_number == 4:
-            command_update_movie()
-        elif selected_number == 5:
-            movies = storage.list_movies()
-            command_average_rating(movies)
-            command_median_ratings(movies)
-            command_best_movie_rating(movies)
-            command_worst_movie_rating(movies)
-        elif selected_number == 6:
-            movies = storage.list_movies()
-            command_random_movie(movies)
-        elif selected_number == 7:
-            movies = storage.list_movies()
-            command_search_movie(movies)
-        elif selected_number == 8:
-            movies = storage.list_movies()
-            command_movies_sorted_by_rating(movies)
-        elif selected_number == 9:
-            movies = storage.list_movies()
-            command_generate_website(movies)
-        if selected_number != 0:
-            input("\nPress Enter to continue")
+
+        action = MENU_ACTIONS.get(selected_number)
+        if action:
+            action()
+
+        input("\nPress Enter to continue")
 
 
 if __name__ == "__main__":

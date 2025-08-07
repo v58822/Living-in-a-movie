@@ -8,6 +8,7 @@ rating.
 - Add movies manually or via OMDb API
 - Store movies in SQLite
 - Generate a responsive HTML website
+- Automatically fetch and display country flags (via API & pycountry)
 
 ## Purpose
 
@@ -34,10 +35,15 @@ Run the app and follow the menu:
 3. Generate website
 4. Open index.html in your browser
 
-You’ll see a fully styled movie card including year, poster and rating.
+You’ll see a fully styled movie card including year, poster, rating, and country flag.
 
 ## Folder Structure
 
 - `data/` → your SQLite database
-- `static/` → HTML/CSS website files
+- `_static/` → HTML/CSS website files
 - `storage/` → Python modules for saving/loading data
+
+## APIs Used
+
+- [OMDb API](http://www.omdbapi.com/) – to fetch movie data
+- [API Ninjas - Country Flags](https://api-ninjas.com/api/countryflag) – to fetch country flag images
